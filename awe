@@ -52,7 +52,7 @@ class ArtwortExtractor:
 	ts_stop = None
 
 	def __init__(self):
-		"""Initializor and main function of the script.
+		"""Initializer and main function of the script.
 		"""
 		global log
 		if len(log.handlers) == 0:
