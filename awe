@@ -32,6 +32,13 @@ class ArtwortExtractor:
 	# Recurse into subdirectories
 	recursive = False
 
+	# Usually one leaf directories (dirs that do not contain other directories)
+	# are processed because this is typically the location where media files
+	# are stored in a media library.
+	# If needed, you can process all directories by providing the -a/--all-dirs
+	# option
+	all_dirs = False
+
 	# Dry-run mode, do not make any changes on the file system
 	dry_run = False
 
@@ -70,7 +77,7 @@ class ArtwortExtractor:
 			log.warn("Dry run: running script in simulation mode")
 
 		# Scan for all directories in the specified self.directory
-		directories = self.get_directories(self.directory, recursive = self.recursive)
+		directories = self.get_directories(self.directory, recursive = self.recursive, leafs = not self.all_dirs)
 		log.info("Found {} dir(s)".format(len(directories)))
 		log.debug("\n".join(directories))
 
@@ -90,6 +97,7 @@ class ArtwortExtractor:
 
 		# Directory options
 		parser.add_argument("dir", nargs="*", action="store", help="Directory that contains the music files. If none given, the current directory will be used.", default=".")
+		parser.add_argument("-a", "--all-dirs", action="store_true", dest="all_dirs", help="Usually only leaf directories (dirs that do not contain other dirs) are processed. If you want to process all directories and put sidecar files to it you can specify this option.", default=False, required=False)
 		parser.add_argument("-r", "--recursive", action="store_true", dest="recursive", help="Dive into subdirectories. Useful if you want to use awe for complete music collections.", default=False, required=False)
 
 		# Output options
@@ -149,6 +157,7 @@ class ArtwortExtractor:
 		### Save values
 		# Store variables depending on the arguments given on the command line
 		self.recursive = results.recursive
+		self.all_dirs = results.all_dirs
 		self.dry_run = results.dry_run
 		self.directory = list(results.dir)
 		self.sidecar_filename = results.name
@@ -157,11 +166,12 @@ class ArtwortExtractor:
 
 
 
-	def get_directories(self, base_dirs, recursive = False):
+	def get_directories(self, base_dirs, recursive = False, leafs = True):
 		"""Get list of directories in a base_dir.
 
 		:param base_dir: List of base directories to scan
 		:param recursive: If True, dive into subdirectories
+		:param leafs: If True, return only dirs that contain no other dirs
 		:return: List of directories in base_dir
 		"""
 		# log.debug("get_directories(): {}".format(base_dirs))
@@ -180,10 +190,14 @@ class ArtwortExtractor:
 
 			# extend the result list with the real absolute path names
 			dirs = [ os.path.realpath(os.path.join(de, f)) for f in os.listdir(de) if os.path.isdir(os.path.join(de, f)) ]
-			result.extend(dirs)
+
+			# If leafs = True we add our dir to the result set
+			# if we do not contain any other directory
+			if not leafs or len(dirs) == 0:
+				result.append(str(d))
 
 			if recursive:
-				result.extend(self.get_directories(dirs, True))
+				result.extend(self.get_directories(dirs, True, leafs = leafs))
 
 		return result
 
