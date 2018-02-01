@@ -6,7 +6,11 @@
 
 import argparse
 import os
+import string
 import sys
+import time
+
+from tinytag import TinyTag
 
 # Setting up logging 
 import logging
@@ -54,12 +58,26 @@ class ArtworkExtractor:
 	directory = []
 
 	# Sidecar files
-	sidecar_filename = None
-	sidecar_quality = 75
+	sidecar_filename = "cover.jpg"
+
+	# Force
+	# If False, existing sidecar files will not be overwritten.
+	# If True, sidecar files will be created in each case
+	force = False
+
+	show_summary = True
 
 	# Timestamps
 	ts_start = None
 	ts_stop = None
+
+	# Statistics
+	folders_total = 0
+	folders_current = 0
+
+	written = set()
+	not_written = set()
+	skipped = set()
 
 	def __init__(self):
 		"""Initializer and main function of the script.
@@ -82,10 +100,35 @@ class ArtworkExtractor:
 		log.debug("Recursion limit set to {}".format(self.recursion_limit))
 		sys.setrecursionlimit(self.recursion_limit)
 
+		# set start timestamp
+		self.ts_start = time.time()
+
 		# Scan for all directories in the specified self.directory
 		directories = self.get_directories(self.directory, recursive = self.recursive, leafs = not self.all_dirs)
-		log.info ("Found {} dir(s)".format(len(directories)))
+		self.folders_total = len(directories)
+		log.info ("Found {} dir(s)".format(self.folders_total))
 		log.debug("\n".join(directories))
+
+
+		# Iterate the list of directories and extract cover artwork
+		for directory in directories:
+			self.folders_current = self.folders_current + 1
+			percent = float(self.folders_current * 100 / self.folders_total)
+
+			if log.level > logging.INFO:
+				# sys.stdout.write("\r[{s}]  {p:3.2f}  {d}".format(s = next(spinner), p = percent, d =  directory))
+				# print("\r[{s}] {p:5.1f}% {d}".format(s=next(spinner), p=percent, d=os.path.basename(directory)), end='\r')
+				print("\r[{s}] {p:6.1f}% {dc:6d}/{dt:6d}    ".format(s=next(spinner), p=percent, dc=self.folders_current, dt=self.folders_total), end='\r')
+				# sys.stdout.flush()
+
+			self.create_sidecar_file(directory)
+
+		print("")
+
+		# set stop timestamp
+		self.ts_stop = time.time()
+
+		self.summary()
 
 
 
@@ -104,12 +147,11 @@ class ArtworkExtractor:
 		parser.add_argument("-a", "--all-dirs", action="store_true", dest="all_dirs", help="Usually only leaf directories (dirs that do not contain other dirs) are processed. If you want to process all directories and put sidecar files to it you can specify this option.", default=False, required=False)
 		# parser.add_argument("-l", "--links", action="store_true", dest="follow_links", help="Follow symlinks.", default=False, required=False)
 		parser.add_argument("-r", "--recursive", action="store_true", dest="recursive", help="Dive into subdirectories. Useful if you want to use awe for complete music collections.", default=False, required=False)
-		parser.add_argument("--recursion-limit", action="store", dest="limit", help="Extend the maximum recursion depth when diving into subdirectories. Default is 1000.", default=1000, required=False)
+		parser.add_argument("--recursion-limit", action="store", dest="limit", help="Extend the maximum recursion depth when diving into subdirectories. Default is 1000.", type=int, default=1000, required=False)
 
 		# Output options
 		parser.add_argument("-f", "--force", action="store_true", dest="force", help="Overwrite already existing sidecar files.", default=False, required=False)
-		parser.add_argument("-n", "--name", action="store", dest="name", help="Name of the sidecar file to write in each folder that contains media files with embedded album artwork. Default is folder.jpg.", default="folder.jpg", required=False)
-		parser.add_argument("-q", "--quality", action="store", dest="quality", help="Quality of the sidecar jpg file to store with 0 <= QUALITY <= 100. Default is 75.", default=75, required=False)
+		parser.add_argument("-n", "--name", action="store", dest="name", help="Name of the sidecar file to write in each folder that contains media files with embedded album artwork. Default is cover.jpg.", default="cover.jpg", required=False)
 
 		# verbosity options
 		verbosity_group = parser.add_mutually_exclusive_group()
@@ -118,7 +160,7 @@ class ArtworkExtractor:
 
 		# simulating
 		parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Do not write any cover artwork files to disk or change anything else. This simulates a run and shows whats going on.", default=False)
-		# parser.add_argument("-s", "--summary", action="store_true", dest="show_summary", help="Prints a summary after finishing the run.", default=False)
+		parser.add_argument("-s", "--summary", action="store_true", dest="show_summary", help="Prints a summary after finishing the run.", default=False)
 
 		# misc options
 		# parser.add_argument("--version", action="version", help="Show version information and exit.", version=epilog)
@@ -169,8 +211,8 @@ class ArtworkExtractor:
 		self.dry_run = results.dry_run
 		self.directory = list(results.dir)
 		self.sidecar_filename = results.name
-		self.sidecar_quality = results.quality
-		# self.show_summary = results.show_summary
+		self.force = results.force
+		self.show_summary = results.show_summary
 
 
 
@@ -182,12 +224,10 @@ class ArtworkExtractor:
 		:param leafs: If True, return only dirs that contain no other dirs
 		:return: List of directories in base_dir
 		"""
-		# log.debug("get_directories(): {}".format(base_dirs))
 		result = []
 		for d in base_dirs:
 			# some preprocessing: expand variables and user dirs
 			de = os.path.realpath(os.path.expandvars(os.path.expanduser(d)))
-			# log.debug("get_dir({}): {}".format(base_dirs, d))
 
 			if not os.path.exists(de) or not os.path.isdir(de):
 				log.warn("Directory {} does not exist".format(de))
@@ -205,9 +245,6 @@ class ArtworkExtractor:
 			# 	sys.stdout.flush()
 
 			# extend the result list with the real absolute path names
-			# dirs = [ os.path.realpath(os.path.join(de, f)) for f in os.listdir(de) if os.access(os.path.join(de, f), os.X_OK) and os.path.isdir(os.path.join(de, f)) ]
-			# dirs = [ os.path.realpath(os.path.join(de, f)) for f in os.listdir(de) if os.path.isdir(os.path.join(de, f)) or (self.follow_links and os.path.islink(os.path.join(de, f))) ]
-			# dirs = [ os.path.realpath(os.path.join(de, f)) for f in os.listdir(de) if os.path.isdir(os.path.join(de, f)) ]
 			dirs = [ os.path.join(de, f) for f in os.listdir(de) if os.path.isdir(os.path.join(de, f)) ]
 
 			# If leafs = True we add our dir to the result set
@@ -221,7 +258,66 @@ class ArtworkExtractor:
 		return sorted(set(result))
 
 
+	def create_sidecar_file(self, directory):
+		"""Get the artwork from one of the files in the directory.
 
+		In this step the artwork will be extracted from the media files and
+		can then be written to a sidecar file.
+		If one piece of artwork could be extracted from a file all other files
+		will not be accessed. The rationale behind this is that we expect (at
+		least) one file (maybe the first one) containts a piece of artwork
+		that represents the cover. If we got that we do not look further.
+
+		We do not need to check if the directory exists and can be accessed
+		because the get_directories() function should have already taken care
+		about that.
+
+		:param directory: Directory with media files
+		"""
+		# log.debug("Create sidecar file in {}".format(directory))
+		files = [ f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)) ]
+
+		# We need to proceed if
+		# 	sidecar file does not exist
+		# or
+		# 	sidecar file exists but --force was used
+		if self.force or not self.sidecar_filename in files:
+			for filename in files:
+				f = os.path.join(directory, filename)
+				log.debug("Trying to read {}".format(f))
+
+				try:
+					tag = TinyTag.get(f, image=True)
+					artwork = tag.get_image()
+					log.debug("Got artwork: {} bytes".format(len(artwork)))
+					with open(os.path.join(directory, self.sidecar_filename), 'wb') as img:
+						log.debug("about to write")
+						img.write(artwork)
+						log.debug("successfully wrote {}".format(os.path.join(directory, self.sidecar_filename)))
+						self.written.add(directory)
+
+					# We are finished for this directory
+					return
+
+				except Exception as e:
+					# log.warn("Error while {}: {}".format(f, e))
+					pass
+
+		else:
+			log.debug("File {} already existing in {} - skipping".format(self.sidecar_filename, directory))
+			self.skipped.add(directory)
+
+		# Here we have not written anything. Reason is unknown.
+		self.not_written.add(directory)
+
+
+	def summary(self):
+		if self.show_summary:
+			log.warn("     Time elapsed: {:10.3f} secs".format(self.ts_stop - self.ts_start))
+			log.warn("    Total folders: {:6d}".format(self.folders_total))
+			log.warn("    Files written: {:6d}".format(len(self.written)))
+			log.warn("    Files skipped: {:6d}".format(len(self.skipped)))
+			log.warn("Files not written: {:6d}".format(len(self.not_written)))
 
 
 if __name__ == '__main__':
