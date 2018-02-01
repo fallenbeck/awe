@@ -27,7 +27,7 @@ def spinning_cursor():
 
 
 
-class ArtwortExtractor:
+class ArtworkExtractor:
 
 	# Recurse into subdirectories
 	recursive = False
@@ -206,4 +206,4 @@ class ArtwortExtractor:
 
 
 if __name__ == '__main__':
-	ArtwortExtractor()
+	ArtworkExtractor()
