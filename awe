@@ -290,11 +290,14 @@ class ArtworkExtractor:
 					tag = TinyTag.get(f, image=True)
 					artwork = tag.get_image()
 					log.debug("Got artwork: {} bytes".format(len(artwork)))
-					with open(os.path.join(directory, self.sidecar_filename), 'wb') as img:
-						log.debug("about to write")
-						img.write(artwork)
-						log.debug("successfully wrote {}".format(os.path.join(directory, self.sidecar_filename)))
-						self.written.add(directory)
+					if not self.dry_run:
+						with open(os.path.join(directory, self.sidecar_filename), 'wb') as img:
+							log.debug("about to write")
+							img.write(artwork)
+							log.debug("successfully wrote {}".format(os.path.join(directory, self.sidecar_filename)))
+					
+					# Add to set of written dirs
+					self.written.add(directory)
 
 					# We are finished for this directory
 					return
