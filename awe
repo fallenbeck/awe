@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 
-# TODO
-# - write (inline) documentation
-# - leaf-only (default)
-
 import argparse
 import os
 import string
@@ -14,7 +10,6 @@ from tinytag import TinyTag
 
 # Setting up logging 
 import logging
-# log_formatter = logging.Formatter('%(asctime)s [%(levelname)7s] (%(filename)16s:%(lineno)4s - %(funcName)20s()) %(message)s')
 log_formatter = logging.Formatter('%(message)s')
 loglevel = logging.DEBUG
 log = logging.getLogger('binpack')
@@ -35,7 +30,6 @@ class ArtworkExtractor:
 
 	# Recurse into subdirectories
 	recursive = False
-	recursion_limit = 1000
 
 	# Usually one leaf directories (dirs that do not contain other directories)
 	# are processed because this is typically the location where media files
@@ -44,13 +38,11 @@ class ArtworkExtractor:
 	# option
 	all_dirs = False
 
-	# follow_links = False
-
 	# Dry-run mode, do not make any changes on the file system
 	dry_run = False
 
 	# Show a summary what has been done after finishing
-	# show_summary = False
+	show_summary = False
 
 	# List of directories that hold the media files where we try to extract
 	# the album cover artwork from. If not specified we should use the
@@ -65,8 +57,6 @@ class ArtworkExtractor:
 	# If True, sidecar files will be created in each case
 	force = False
 
-	show_summary = True
-
 	# Timestamps
 	ts_start = None
 	ts_stop = None
@@ -78,6 +68,8 @@ class ArtworkExtractor:
 	written = set()
 	not_written = set()
 	skipped = set()
+
+
 
 	def __init__(self):
 		"""Initializer and main function of the script.
@@ -97,9 +89,6 @@ class ArtworkExtractor:
 		if self.dry_run:
 			log.warn("Dry run: running script in simulation mode")
 
-		log.debug("Recursion limit set to {}".format(self.recursion_limit))
-		sys.setrecursionlimit(self.recursion_limit)
-
 		# set start timestamp
 		self.ts_start = time.time()
 
@@ -109,17 +98,13 @@ class ArtworkExtractor:
 		log.info ("Found {} dir(s)".format(self.folders_total))
 		log.debug("\n".join(directories))
 
-
 		# Iterate the list of directories and extract cover artwork
 		for directory in directories:
 			self.folders_current = self.folders_current + 1
 			percent = float(self.folders_current * 100 / self.folders_total)
 
 			if log.level > logging.INFO:
-				# sys.stdout.write("\r[{s}]  {p:3.2f}  {d}".format(s = next(spinner), p = percent, d =  directory))
-				# print("\r[{s}] {p:5.1f}% {d}".format(s=next(spinner), p=percent, d=os.path.basename(directory)), end='\r')
 				print("\r[{s}] {p:6.1f}% {dc:6d}/{dt:6d}    ".format(s=next(spinner), p=percent, dc=self.folders_current, dt=self.folders_total), end='\r')
-				# sys.stdout.flush()
 
 			self.create_sidecar_file(directory)
 
@@ -145,9 +130,7 @@ class ArtworkExtractor:
 		# Directory options
 		parser.add_argument("dir", nargs="*", action="store", help="Directory that contains the music files. If none given, the current directory will be used.", default=".")
 		parser.add_argument("-a", "--all-dirs", action="store_true", dest="all_dirs", help="Usually only leaf directories (dirs that do not contain other dirs) are processed. If you want to process all directories and put sidecar files to it you can specify this option.", default=False, required=False)
-		# parser.add_argument("-l", "--links", action="store_true", dest="follow_links", help="Follow symlinks.", default=False, required=False)
 		parser.add_argument("-r", "--recursive", action="store_true", dest="recursive", help="Dive into subdirectories. Useful if you want to use awe for complete music collections.", default=False, required=False)
-		parser.add_argument("--recursion-limit", action="store", dest="limit", help="Extend the maximum recursion depth when diving into subdirectories. Default is 1000.", type=int, default=1000, required=False)
 
 		# Output options
 		parser.add_argument("-f", "--force", action="store_true", dest="force", help="Overwrite already existing sidecar files.", default=False, required=False)
@@ -155,16 +138,12 @@ class ArtworkExtractor:
 
 		# verbosity options
 		verbosity_group = parser.add_mutually_exclusive_group()
-		verbosity_group.add_argument("--quiet", action="store_true", dest="quiet", help="Do not print anything to stdout but error messages.", default=False, required=False)
+		verbosity_group.add_argument("-q", "--quiet", action="store_true", dest="quiet", help="Do not print anything to stdout but error messages.", default=False, required=False)
 		verbosity_group.add_argument("-v", "--verbose", action="count", dest="verbosity", help="Be more verbose what happens.", default=0, required=False)
+		parser.add_argument("-s", "--summary", action="store_true", dest="show_summary", help="Prints a summary after finishing the run.", default=False)
 
 		# simulating
 		parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Do not write any cover artwork files to disk or change anything else. This simulates a run and shows whats going on.", default=False)
-		parser.add_argument("-s", "--summary", action="store_true", dest="show_summary", help="Prints a summary after finishing the run.", default=False)
-
-		# misc options
-		# parser.add_argument("--version", action="version", help="Show version information and exit.", version=epilog)
-
 
 
 		# if an error occurs the help will be displayed automatically
@@ -176,8 +155,8 @@ class ArtworkExtractor:
 
 		# set log level depending on verbosity
 		# if quiet is set, set log level to ERROR level
-		# if results.quiet:
-		# 	log.setLevel(logging.ERROR)
+		if results.quiet:
+			log.setLevel(logging.ERROR)
 		if results.verbosity == 0:
 			# default behavior is neither -q nor -v* has been provided
 			log.setLevel(logging.WARN)
@@ -193,9 +172,6 @@ class ArtworkExtractor:
 			for handler in log.handlers:
 				handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)7s] (%(filename)16s:%(lineno)4s - %(funcName)20s()) %(message)s'))
 
-		# log.debug("Log level set to {log_level}".format(log_level=logging.getLevelName(log.level)))
-		# log.debug("Parsed arguments: {}".format(results))
-
 		### Sanity checks
 
 		# results.name is valid file name
@@ -205,7 +181,7 @@ class ArtworkExtractor:
 		### Save values
 		# Store variables depending on the arguments given on the command line
 		self.recursive = results.recursive
-		self.recursion_limit = int(results.limit)
+		# self.recursion_limit = int(results.limit)
 		self.all_dirs = results.all_dirs
 		# self.follow_links = results.follow_links
 		self.dry_run = results.dry_run
@@ -238,11 +214,6 @@ class ArtworkExtractor:
 			# if not self.follow_links and os.path.islink(de):
 			# 	log.warn("Do not follow link: {}".format(de))
 			# 	continue
-
-
-			# if log.level == logging.INFO:
-			# 	sys.stdout.write("\r[{}] {}".format(next(spinner), de))
-			# 	sys.stdout.flush()
 
 			# extend the result list with the real absolute path names
 			dirs = [ os.path.join(de, f) for f in os.listdir(de) if os.path.isdir(os.path.join(de, f)) ]
