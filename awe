@@ -31,6 +31,7 @@ class ArtworkExtractor:
 
 	# Recurse into subdirectories
 	recursive = False
+	recursion_limit = 255
 
 	# Usually one leaf directories (dirs that do not contain other directories)
 	# are processed because this is typically the location where media files
@@ -76,6 +77,9 @@ class ArtworkExtractor:
 		if self.dry_run:
 			log.warn("Dry run: running script in simulation mode")
 
+		log.debug("Recursion limit set to {}".format(self.recursion_limit))
+		sys.setrecursionlimit(self.recursion_limit)
+
 		# Scan for all directories in the specified self.directory
 		directories = self.get_directories(self.directory, recursive = self.recursive, leafs = not self.all_dirs)
 		log.info ("Found {} dir(s)".format(len(directories)))
@@ -97,6 +101,7 @@ class ArtworkExtractor:
 		parser.add_argument("dir", nargs="*", action="store", help="Directory that contains the music files. If none given, the current directory will be used.", default=".")
 		parser.add_argument("-a", "--all-dirs", action="store_true", dest="all_dirs", help="Usually only leaf directories (dirs that do not contain other dirs) are processed. If you want to process all directories and put sidecar files to it you can specify this option.", default=False, required=False)
 		parser.add_argument("-r", "--recursive", action="store_true", dest="recursive", help="Dive into subdirectories. Useful if you want to use awe for complete music collections.", default=False, required=False)
+		parser.add_argument("--recursion-limit", action="store", dest="limit", help="Extend the maximum recursion depth when diving into subdirectories. Default is 255.", default=255, required=False)
 
 		# Output options
 		parser.add_argument("-f", "--force", action="store_true", dest="force", help="Overwrite already existing sidecar files.", default=False, required=False)
@@ -155,6 +160,7 @@ class ArtworkExtractor:
 		### Save values
 		# Store variables depending on the arguments given on the command line
 		self.recursive = results.recursive
+		self.recursion_limit = int(results.limit)
 		self.all_dirs = results.all_dirs
 		self.dry_run = results.dry_run
 		self.directory = list(results.dir)
