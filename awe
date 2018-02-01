@@ -78,11 +78,9 @@ class ArtworkExtractor:
 
 		# Scan for all directories in the specified self.directory
 		directories = self.get_directories(self.directory, recursive = self.recursive, leafs = not self.all_dirs)
-		log.info("Found {} dir(s)".format(len(directories)))
-		log.debug("\n".join(directories))
+		log.info ("Found {} dir(s)".format(len(directories)))
+		log.debug("Processing dir(s): {}".format("\n".join(directories)))
 
-
-		# print("Files:\n{}".format(directories))
 
 
 	def parse_args(self):
@@ -177,19 +175,32 @@ class ArtworkExtractor:
 		# log.debug("get_directories(): {}".format(base_dirs))
 		result = []
 		for d in base_dirs:
-			if not os.path.exists(d) or not os.path.isdir(d):
-				log.warn("{} does not exist".format(d))
-				continue
-
 			# some preprocessing: expand variables and user dirs
 			de = os.path.expandvars(os.path.expanduser(d))
+
+			if not os.path.exists(de) or not os.path.isdir(de):
+				log.warn("Directory {} does not exist".format(de))
+				continue
+			if not os.access(de, os.R_OK):
+				log.warn("Cannot access {}".format(de))
+				continue
+
 
 			# if log.level == logging.INFO:
 			# 	sys.stdout.write("\r[{}] {}".format(next(spinner), de))
 			# 	sys.stdout.flush()
 
 			# extend the result list with the real absolute path names
+			# dirs = [ os.path.realpath(os.path.join(de, f)) for f in os.listdir(de) if os.access(os.path.join(de, f), os.X_OK) and os.path.isdir(os.path.join(de, f)) ]
 			dirs = [ os.path.realpath(os.path.join(de, f)) for f in os.listdir(de) if os.path.isdir(os.path.join(de, f)) ]
+
+			# dirs = []
+			# try:
+			# 	for f in os.listdir(de):
+			# 		if os.path(isdir(os.path.join(de, f))):
+			# 			dirs.append(f)
+			# except Exception as e:
+				# log.warn("Cannot read {}: {}".format(de, e))
 
 			# If leafs = True we add our dir to the result set
 			# if we do not contain any other directory
