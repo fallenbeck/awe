@@ -43,4 +43,56 @@ optional arguments:
                         going on.
 ```
 
+## Speed
+
+I did not conduct a lot of tests but I was wondering if it is better to run
+awe on a locally stored iTunes music database or run it directly on a NAS.
+My local iTunes media library is stored on an SSD while the NAS uses six
+5400-rpm disks in RAID6. The NAS is connected via cable using a 2 x 1 GBit
+bond interface to my Mac Pro. Both volumes are encrypted.
+
+### Local SSD
+```sh
+fallenbeck@kafka:~/src/awe [master] $ ./awe -a -r -f -v -s /Volumes/Media/iTunes/iTunes\ Media/Music/
+Found 2764 dir(s)
+
+     Time elapsed:    194.016 secs
+    Total folders:   2764
+    Files written:   1438
+    Files skipped:      0
+Files not written:   1326
+```
+
+### NAS RAID6 on 6 5400-rpm HDDs
+```sh
+fallenbeck@kafka:~/src/awe [master] $ ./awe -a -r -f -v -s /Volumes/music/
+Found 2764 dir(s)
+
+     Time elapsed:    320.512 secs
+    Total folders:   2764
+    Files written:   1439
+    Files skipped:      0
+Files not written:   1325
+```
+
+I was a bit surprised that the runtime on the NAS is not that bad. Of course
+it's a bit slower than working on a local SSD but it does not even need the
+double amount of time. I expected that the runtime on the NAS would be much
+worse.
+
+## Known issues
+* Sidecar files are stored as jpg independent from the image format that is
+  included in the media files. If another format than jpg is provided by the
+  media files, awe would create faulty sidecar files for these covers.
+
 ## License
+
+The software is licensed under the MIT license.
+
+Copyright 2018 Niels Fallenbeck
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
