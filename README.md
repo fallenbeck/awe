@@ -47,9 +47,9 @@ optional arguments:
 
 I did not conduct a lot of tests but I was wondering if it is better to run
 awe on a locally stored iTunes music database or run it directly on a NAS.
-My local iTunes media library is stored on an SSD while the NAS uses six
+My local iTunes media library is stored on a SSD while the NAS uses six
 5400-rpm disks in RAID6. The NAS is connected via cable using a 2 x 1 GBit
-bond interface to my Mac Pro. Both volumes are encrypted.
+bond interface to my Mac Pro (macOS High Sierra). Both volumes are encrypted.
 
 ### Local SSD
 ```sh
@@ -77,8 +77,7 @@ Files not written:   1325
 
 I was a bit surprised that the runtime on the NAS is not that bad. Of course
 it's a bit slower than working on a local SSD but it does not even need the
-double amount of time. I expected that the runtime on the NAS would be much
-worse.
+double amount of time. I expected the runtime on the NAS to be much worse.
 
 ## Known issues
 * Sidecar files are stored as jpg independent from the image format that is
