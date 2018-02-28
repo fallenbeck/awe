@@ -282,6 +282,11 @@ class ArtworkExtractor:
 				try:
 					tag = TinyTag.get(f, image=True)
 					artwork = tag.get_image()
+
+					if artwork is None:
+						log.debug("No artwork found")
+						continue
+
 					log.debug("Got artwork: {} bytes".format(len(artwork)))
 					extension = self._guess_extension(artwork)
 					if not self.dry_run:
