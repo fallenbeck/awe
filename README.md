@@ -80,9 +80,7 @@ it's a bit slower than working on a local SSD but it does not even need the
 double amount of time. I expected the runtime on the NAS to be much worse.
 
 ## Known issues
-* Sidecar files are stored as jpg independent from the image format that is
-  included in the media files. If another format than jpg is provided by the
-  media files, awe would create faulty sidecar files for these covers.
+**None**
 
 ## License
 
