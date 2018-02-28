@@ -284,7 +284,7 @@ class ArtworkExtractor:
 					artwork = tag.get_image()
 
 					if artwork is None:
-						log.debug("No artwork found")
+						log.debug("No artwork found in {}".format(filename))
 						continue
 
 					log.debug("Got artwork: {} bytes".format(len(artwork)))
@@ -303,7 +303,7 @@ class ArtworkExtractor:
 					return
 
 				except Exception as e:
-					# log.warn("Error while {}: {}".format(f, e))
+					log.debug("Error while reading {}: {}".format(f, e))
 					pass
 
 		else:
