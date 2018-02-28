@@ -82,6 +82,17 @@ double amount of time. I expected the runtime on the NAS to be much worse.
 ## Known issues
 **None**
 
+## Remove all existing sidecar files from your library
+If you want to remove all existing sidecar files from your library, you can
+use a simple `find` command:
+
+```sh
+find /path/to/your/library/ -name "cover.*" -delete
+```
+
+If you use a different sidecar file name than `cover` you need to modify this
+command.
+
 ## License
 
 The software is licensed under the MIT license.
