@@ -5,6 +5,7 @@ import os
 import string
 import sys
 import time
+import imghdr
 
 from tinytag import TinyTag
 
@@ -50,7 +51,7 @@ class ArtworkExtractor:
 	directory = []
 
 	# Sidecar files
-	sidecar_filename = "cover.jpg"
+	sidecar_filename_without_ext = "cover"
 
 	# Force
 	# If False, existing sidecar files will not be overwritten.
@@ -134,7 +135,7 @@ class ArtworkExtractor:
 
 		# Output options
 		parser.add_argument("-f", "--force", action="store_true", dest="force", help="Overwrite already existing sidecar files.", default=False, required=False)
-		parser.add_argument("-n", "--name", action="store", dest="name", help="Name of the sidecar file to write in each folder that contains media files with embedded album artwork. Default is cover.jpg.", default="cover.jpg", required=False)
+		parser.add_argument("-n", "--name", action="store", dest="name", help="Name of the sidecar file without extension to write in each folder that contains media files with embedded album artwork. The extension will be added automatically! Default is cover.", default="cover", required=False)
 
 		# verbosity options
 		verbosity_group = parser.add_mutually_exclusive_group()
@@ -186,7 +187,7 @@ class ArtworkExtractor:
 		# self.follow_links = results.follow_links
 		self.dry_run = results.dry_run
 		self.directory = list(results.dir)
-		self.sidecar_filename = results.name
+		self.sidecar_filename_without_ext = results.name
 		self.force = results.force
 		self.show_summary = results.show_summary
 
@@ -229,6 +230,27 @@ class ArtworkExtractor:
 		return sorted(set(result))
 
 
+	def _guess_extension(self, bytes, fallback_ext="jpg"):
+		"""Guesses the extension of the image data given as bytes.
+		If no extension could be guessed, it will return the extension
+		specified by fallback_ext.
+
+		:param bytes: Data of the (image) file
+		:param fallback_ext: Extension to use if it could not guessed
+		:returns: File extension as string
+		"""
+		extension = imghdr.what("no_filename", bytes)
+		
+		if extension is None:
+			log.debug("Could not guess extension - using fallback")
+			extension = fallback_ext
+		elif extension == "jpeg":
+			extension = "jpg"
+		
+		log.debug("Return extension: {}".format(extension))
+		return extension
+
+
 	def create_sidecar_file(self, directory):
 		"""Get the artwork from one of the files in the directory.
 
@@ -252,7 +274,7 @@ class ArtworkExtractor:
 		# 	sidecar file does not exist
 		# or
 		# 	sidecar file exists but --force was used
-		if self.force or not self.sidecar_filename in files:
+		if self.force or not len([ g for g in files if g.startswith(self.sidecar_filename_without_ext) ]) == 0:
 			for filename in files:
 				f = os.path.join(directory, filename)
 				log.debug("Trying to read {}".format(f))
@@ -261,11 +283,13 @@ class ArtworkExtractor:
 					tag = TinyTag.get(f, image=True)
 					artwork = tag.get_image()
 					log.debug("Got artwork: {} bytes".format(len(artwork)))
+					extension = self._guess_extension(artwork)
 					if not self.dry_run:
-						with open(os.path.join(directory, self.sidecar_filename), 'wb') as img:
-							log.debug("about to write")
+						file_to_write = os.path.join(directory, "{}.{}".format(self.sidecar_filename_without_ext, extension))
+						with open(file_to_write, 'wb') as img:
+							log.debug("about to write {}".format(file_to_write))
 							img.write(artwork)
-							log.debug("successfully wrote {}".format(os.path.join(directory, self.sidecar_filename)))
+							log.debug("successfully wrote {}".format(file_to_write))
 					
 					# Add to set of written dirs
 					self.written.add(directory)
@@ -278,7 +302,7 @@ class ArtworkExtractor:
 					pass
 
 		else:
-			log.debug("File {} already existing in {} - skipping".format(self.sidecar_filename, directory))
+			log.debug("File {}.* already existing in {} - skipping".format(self.sidecar_filename_without_ext, directory))
 			self.skipped.add(directory)
 
 		# Here we have not written anything. Reason is unknown.
