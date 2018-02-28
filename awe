@@ -274,7 +274,7 @@ class ArtworkExtractor:
 		# 	sidecar file does not exist
 		# or
 		# 	sidecar file exists but --force was used
-		if self.force or not len([ g for g in files if g.startswith(self.sidecar_filename_without_ext) ]) == 0:
+		if self.force or len([ g for g in files if g.startswith(self.sidecar_filename_without_ext) ]) == 0:
 			for filename in files:
 				f = os.path.join(directory, filename)
 				log.debug("Trying to read {}".format(f))
