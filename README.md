@@ -84,7 +84,7 @@ double amount of time. I expected the runtime on the NAS to be much worse.
 
 ## Remove all existing sidecar files from your library
 If you want to remove all existing sidecar files from your library, you can
-use a simple `find` command:
+use a simple `find` command. This is helpful if you want to start over.
 
 ```sh
 find /path/to/your/library/ -name "cover.*" -delete
