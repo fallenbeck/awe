@@ -307,7 +307,7 @@ class ArtworkExtractor:
 					pass
 
 		else:
-			log.debug("File {}.* already existing in {} - skipping".format(self.sidecar_filename_without_ext, directory))
+			log.debug("File {}.* already existing in {} - skipping".format(self.sidecar_filename_without_ext), directory)
 			self.skipped.add(directory)
 
 		# Here we have not written anything. Reason is unknown.
