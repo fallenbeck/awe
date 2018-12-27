@@ -88,7 +88,7 @@ class ArtworkExtractor:
 
 		self.parse_args()
 		if self.dry_run:
-			log.warn("Dry run: running script in simulation mode")
+			log.warning("Dry run: running script in simulation mode")
 
 		# set start timestamp
 		self.ts_start = time.time()
@@ -207,13 +207,13 @@ class ArtworkExtractor:
 			de = os.path.realpath(os.path.expandvars(os.path.expanduser(d)))
 
 			if not os.path.exists(de) or not os.path.isdir(de):
-				log.warn("Directory {} does not exist".format(de))
+				log.warning("Directory {} does not exist".format(de))
 				continue
 			if not os.access(de, os.R_OK):
-				log.warn("Cannot access {}".format(de))
+				log.warning("Cannot access {}".format(de))
 				continue
 			# if not self.follow_links and os.path.islink(de):
-			# 	log.warn("Do not follow link: {}".format(de))
+			# 	log.warning("Do not follow link: {}".format(de))
 			# 	continue
 
 			# extend the result list with the real absolute path names
@@ -307,7 +307,7 @@ class ArtworkExtractor:
 					pass
 
 		else:
-			log.debug("File {}.* already existing in {} - skipping".format(self.sidecar_filename_without_ext), directory)
+			log.debug("File {}.* already existing in {} - skipping".format(self.sidecar_filename_without_ext, directory))
 			self.skipped.add(directory)
 
 		# Here we have not written anything. Reason is unknown.
@@ -316,11 +316,11 @@ class ArtworkExtractor:
 
 	def summary(self):
 		if self.show_summary:
-			log.warn("     Time elapsed: {:10.3f} secs".format(self.ts_stop - self.ts_start))
-			log.warn("    Total folders: {:6d}".format(self.folders_total))
-			log.warn("    Files written: {:6d}".format(len(self.written)))
-			log.warn("    Files skipped: {:6d}".format(len(self.skipped)))
-			log.warn("Files not written: {:6d}".format(len(self.not_written)))
+			log.warning("     Time elapsed: {:10.3f} secs".format(self.ts_stop - self.ts_start))
+			log.warning("    Total folders: {:6d}".format(self.folders_total))
+			log.warning("    Files written: {:6d}".format(len(self.written)))
+			log.warning("    Files skipped: {:6d}".format(len(self.skipped)))
+			log.warning("Files not written: {:6d}".format(len(self.not_written)))
 
 
 if __name__ == '__main__':
