@@ -270,6 +270,11 @@ class ArtworkExtractor:
 		# log.debug("Create sidecar file in {}".format(directory))
 		files = [ f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)) ]
 
+
+		# Method to use
+		method = 2
+
+
 		# We need to proceed if
 		# 	sidecar file does not exist
 		# or
@@ -288,14 +293,51 @@ class ArtworkExtractor:
 						continue
 
 					log.debug("Got artwork: {} bytes".format(len(artwork)))
-					extension = self._guess_extension(artwork)
-					if not self.dry_run:
-						file_to_write = os.path.join(directory, "{}.{}".format(self.sidecar_filename_without_ext, extension))
-						with open(file_to_write, 'wb') as img:
-							log.debug("about to write {}".format(file_to_write))
-							img.write(artwork)
-							log.debug("successfully wrote {}".format(file_to_write))
-					
+
+
+					if method == 1:
+						from PIL import Image
+						try:
+							with Image.open(io.BytesIO(artwork)) as im:
+								log.debug("Image type: {} (in: {})".format(im.format, directory))
+	
+								extension = im.format.lower()
+								if extension == 'jpeg':
+									extension = 'jpg'
+	
+								file_to_write = os.path.join(directory, "{}.{}".format(self.	sidecar_filename_without_ext, extension))
+	
+								if not self.dry_run:
+									im.save(file_to_write)
+	
+						except IOError as e:
+							log.warning("Could not write file: {}".format(file_to_write))
+							continue
+						except Exception as e:
+							log.warning("PIL: {} (in {})".format(e, directory))
+							continue
+
+
+					if method == 2:
+						try:
+							extension = self._guess_extension(artwork)
+						except Exception as e:
+							# If we catch this exception the sidecar file extension
+							# could not be automatically determined from the
+							# artwork bytes.
+							# We do not want to write broken artwork files so we
+							# will continue with the next media file
+							log.info("Exception: {} (in {})".format(e, directory))
+							continue
+	
+	
+						if not self.dry_run:
+							file_to_write = os.path.join(directory, "{}.{}".format(self.	sidecar_filename_without_ext, extension))
+							with open(file_to_write, 'wb') as img:
+								log.debug("about to write {}".format(file_to_write))
+								img.write(artwork)
+								log.debug("successfully wrote {}".format(file_to_write))
+
 					# Add to set of written dirs
 					self.written.add(directory)
 
