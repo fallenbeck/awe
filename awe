@@ -20,364 +20,364 @@ log.setLevel(loglevel)
 spinner = None
 
 def spinning_cursor():
-	"""Spinning Cursor to keep the user informed that something happens
-	"""
-	while True:
-		for cursor in '|/-\\':
-			yield cursor
+    """Spinning Cursor to keep the user informed that something happens
+    """
+    while True:
+        for cursor in '|/-\\':
+            yield cursor
 
 
 
 class ArtworkExtractor:
 
-	# Recurse into subdirectories
-	recursive = False
+    # Recurse into subdirectories
+    recursive = False
 
-	# Usually one leaf directories (dirs that do not contain other directories)
-	# are processed because this is typically the location where media files
-	# are stored in a media library.
-	# If needed, you can process all directories by providing the -a/--all-dirs
-	# option
-	all_dirs = False
+    # Usually one leaf directories (dirs that do not contain other directories)
+    # are processed because this is typically the location where media files
+    # are stored in a media library.
+    # If needed, you can process all directories by providing the -a/--all-dirs
+    # option
+    all_dirs = False
 
-	# Dry-run mode, do not make any changes on the file system
-	dry_run = False
+    # Dry-run mode, do not make any changes on the file system
+    dry_run = False
 
-	# Show a summary what has been done after finishing
-	show_summary = False
+    # Show a summary what has been done after finishing
+    show_summary = False
 
-	# List of directories that hold the media files where we try to extract
-	# the album cover artwork from. If not specified we should use the
-	# current directory.
-	directory = []
+    # List of directories that hold the media files where we try to extract
+    # the album cover artwork from. If not specified we should use the
+    # current directory.
+    directory = []
 
-	# File type stats
-	# keys are the extensions, the values are the number of file written
-	extensions_written = {}
+    # File type stats
+    # keys are the extensions, the values are the number of file written
+    extensions_written = {}
 
-	# Sidecar files
-	sidecar_filename_without_ext = "cover"
+    # Sidecar files
+    sidecar_filename_without_ext = "cover"
 
-	# Force
-	# If False, existing sidecar files will not be overwritten.
-	# If True, sidecar files will be created in each case
-	force = False
+    # Force
+    # If False, existing sidecar files will not be overwritten.
+    # If True, sidecar files will be created in each case
+    force = False
 
-	# Timestamps
-	ts_start = None
-	ts_stop = None
+    # Timestamps
+    ts_start = None
+    ts_stop = None
 
-	# Statistics
-	folders_total = 0
-	folders_current = 0
-
-	written = set()
-	not_written = set()
-	skipped = set()
-
-
-
-	def __init__(self):
-		"""Initializer and main function of the script.
-		"""
-		global log
-		if len(log.handlers) == 0:
-			stdout = logging.StreamHandler()
-			# stdout.setFormatter(log_formatter)
-			log.addHandler(stdout)
-			log.setLevel(loglevel)
+    # Statistics
+    folders_total = 0
+    folders_current = 0
+
+    written = set()
+    not_written = set()
+    skipped = set()
+
+
+
+    def __init__(self):
+        """Initializer and main function of the script.
+        """
+        global log
+        if len(log.handlers) == 0:
+            stdout = logging.StreamHandler()
+            # stdout.setFormatter(log_formatter)
+            log.addHandler(stdout)
+            log.setLevel(loglevel)
 
-		# Initialize the spinner (rotating thing when -v mode)
-		global spinner
-		spinner = spinning_cursor()
-
-		self.parse_args()
-		if self.dry_run:
-			log.warning("Dry run: running script in simulation mode")
-
-		# set start timestamp
-		self.ts_start = time.time()
-
-		# Scan for all directories in the specified self.directory
-		directories = self.get_directories(self.directory, recursive = self.recursive, leafs = not self.all_dirs)
-		self.folders_total = len(directories)
-		log.info ("Found {} dir(s)".format(self.folders_total))
-		log.debug("\n".join(directories))
-
-		# Iterate the list of directories and extract cover artwork
-		for directory in directories:
-			self.folders_current = self.folders_current + 1
-			percent = float(self.folders_current * 100 / self.folders_total)
-
-			if log.level > logging.INFO:
-				print("\r[{s}] {p:6.1f}% {dc:6d}/{dt:6d}    ".format(s=next(spinner), p=percent, dc=self.folders_current, dt=self.folders_total), end='\r')
-
-			self.create_sidecar_file(directory)
-
-		print("")
-
-		# set stop timestamp
-		self.ts_stop = time.time()
-
-		self.summary()
-
-
-
-	def parse_args(self):
-		"""
-		This function parses the arguments passed to the script by the
-		command line.
-		"""
-		description = "awe extracts cover artwork from music files and saves it to a file in the each album's directory."
-		epilog = "{my_name}, Python {py_version_maj}.{py_version_min}.{py_version_tiny}".format(my_name = self.__class__.__name__, py_version_maj = sys.version_info[0], py_version_min = sys.version_info[1], py_version_tiny = sys.version_info[2])
-
-		parser = argparse.ArgumentParser(description = description, epilog="{epilog}".format(epilog=epilog), conflict_handler="resolve")
-
-		# Directory options
-		parser.add_argument("dir", nargs="*", action="store", help="Directory that contains the music files. If none given, the current directory will be used.", default=".")
-		parser.add_argument("-a", "--all-dirs", action="store_true", dest="all_dirs", help="Usually only leaf directories (dirs that do not contain other dirs) are processed. If you want to process all directories and put sidecar files to it you can specify this option.", default=False, required=False)
-		parser.add_argument("-r", "--recursive", action="store_true", dest="recursive", help="Dive into subdirectories. Useful if you want to use awe for complete music collections.", default=False, required=False)
-
-		# Output options
-		parser.add_argument("-f", "--force", action="store_true", dest="force", help="Overwrite already existing sidecar files.", default=False, required=False)
-		parser.add_argument("-n", "--name", action="store", dest="name", help="Name of the sidecar file without extension to write in each folder that contains media files with embedded album artwork. The extension will be added automatically! Default is cover.", default="cover", required=False)
-
-		# verbosity options
-		verbosity_group = parser.add_mutually_exclusive_group()
-		verbosity_group.add_argument("-q", "--quiet", action="store_true", dest="quiet", help="Do not print anything to stdout but error messages.", default=False, required=False)
-		verbosity_group.add_argument("-v", "--verbose", action="count", dest="verbosity", help="Be more verbose what happens.", default=0, required=False)
-		parser.add_argument("-s", "--summary", action="store_true", dest="show_summary", help="Prints a summary after finishing the run.", default=False)
-
-		# simulating
-		parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Do not write any cover artwork files to disk or change anything else. This simulates a run and shows whats going on.", default=False)
-
-
-		# if an error occurs the help will be displayed automatically
-		try:
-			results = parser.parse_args()
-		except:
-			# parser.print_help()
-			sys.exit(0)
-
-		# set log level depending on verbosity
-		# if quiet is set, set log level to ERROR level
-		if results.quiet:
-			log.setLevel(logging.ERROR)
-		if results.verbosity == 0:
-			# default behavior is neither -q nor -v* has been provided
-			log.setLevel(logging.WARN)
-		elif results.verbosity == 1:
-			log.setLevel(logging.INFO)
-		elif results.verbosity == 2:
-			# if -vv or more is specified you can handle that here
-			log.setLevel(logging.DEBUG)
-		else: # results.verbosity >= 3:
-			# even more -v's: change logformatter and enable extended debug ouput
-			log.setLevel(logging.DEBUG)
-
-			for handler in log.handlers:
-				handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)7s] (%(filename)16s:%(lineno)4s - %(funcName)20s()) %(message)s'))
-
-		### Sanity checks
-
-		# results.name is valid file name
-
-		# results.quality is 0 <= int <= 100
-
-		### Save values
-		# Store variables depending on the arguments given on the command line
-		self.recursive = results.recursive
-		# self.recursion_limit = int(results.limit)
-		self.all_dirs = results.all_dirs
-		# self.follow_links = results.follow_links
-		self.dry_run = results.dry_run
-		self.directory = list(results.dir)
-		self.sidecar_filename_without_ext = results.name
-		self.force = results.force
-		self.show_summary = results.show_summary
-
-
-
-	def get_directories(self, base_dirs, recursive = False, leafs = True):
-		"""Get list of directories in a base_dir.
-
-		:param base_dir: List of base directories to scan
-		:param recursive: If True, dive into subdirectories
-		:param leafs: If True, return only dirs that contain no other dirs
-		:return: List of directories in base_dir
-		"""
-		result = []
-		for d in base_dirs:
-			# some preprocessing: expand variables and user dirs
-			de = os.path.realpath(os.path.expandvars(os.path.expanduser(d)))
-
-			if not os.path.exists(de) or not os.path.isdir(de):
-				log.warning("Directory {} does not exist".format(de))
-				continue
-			if not os.access(de, os.R_OK):
-				log.warning("Cannot access {}".format(de))
-				continue
-			# if not self.follow_links and os.path.islink(de):
-			# 	log.warning("Do not follow link: {}".format(de))
-			# 	continue
-
-			# extend the result list with the real absolute path names
-			dirs = [ os.path.join(de, f) for f in os.listdir(de) if os.path.isdir(os.path.join(de, f)) ]
-
-			# If leafs = True we add our dir to the result set
-			# if we do not contain any other directory
-			if not leafs or len(dirs) == 0:
-				result.append(de)
-
-			if recursive:
-				result.extend(self.get_directories(dirs, True, leafs = leafs))
-
-		return sorted(set(result))
-
-
-	def _guess_extension(self, bytes, fallback_ext="jpg"):
-		"""Guesses the extension of the image data given as bytes.
-		If no extension could be guessed, it will return the extension
-		specified by fallback_ext.
-
-		:param bytes: Data of the (image) file
-		:param fallback_ext: Extension to use if it could not guessed
-		:returns: File extension as string
-		"""
-		extension = imghdr.what("no_filename", bytes)
-		
-		if extension is None:
-			raise Exception('Could not determine extension from bytes')
-			# log.debug("Could not guess extension - using fallback")
-			# extension = fallback_ext
-			# log.info("Ext: {}".format(extension))
-			# sys.exit(2)
-		elif extension == "jpeg":
-			extension = "jpg"
-		
-		log.debug("Return extension: {}".format(extension))
-		return extension
-
-
-	def create_sidecar_file(self, directory):
-		"""Get the artwork from one of the files in the directory.
-
-		In this step the artwork will be extracted from the media files and
-		can then be written to a sidecar file.
-		If one piece of artwork could be extracted from a file all other files
-		will not be accessed. The rationale behind this is that we expect (at
-		least) one file (maybe the first one) containts a piece of artwork
-		that represents the cover. If we got that we do not look further.
-
-		We do not need to check if the directory exists and can be accessed
-		because the get_directories() function should have already taken care
-		about that.
-
-		:param directory: Directory with media files
-		"""
-		# log.debug("Create sidecar file in {}".format(directory))
-		files = [ f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)) ]
-
-
-		# Method to use
-		method = 2
-
-
-		# We need to proceed if
-		# 	sidecar file does not exist
-		# or
-		# 	sidecar file exists but --force was used
-		if self.force or len([ g for g in files if g.startswith(self.sidecar_filename_without_ext) ]) == 0:
-			for filename in files:
-				f = os.path.join(directory, filename)
-				log.debug("Trying to read {}".format(f))
-
-				try:
-					tag = TinyTag.get(f, image=True)
-					artwork = tag.get_image()
-
-					if artwork is None:
-						log.debug("No artwork found in {}".format(filename))
-						continue
-
-					log.debug("Got artwork: {} bytes".format(len(artwork)))
-
-
-					if method == 1:
-						from PIL import Image
-						try:
-							with Image.open(io.BytesIO(artwork)) as im:
-								log.debug("Image type: {} (in: {})".format(im.format, directory))
-	
-								extension = im.format.lower()
-								if extension == 'jpeg':
-									extension = 'jpg'
-	
-								file_to_write = os.path.join(directory, "{}.{}".format(self.	sidecar_filename_without_ext, extension))
-	
-								if not self.dry_run:
-									im.save(file_to_write)
-	
-						except IOError as e:
-							log.warning("Could not write file: {}".format(file_to_write))
-							continue
-						except Exception as e:
-							log.warning("PIL: {} (in {})".format(e, directory))
-							continue
-
-
-					if method == 2:
-						try:
-							extension = self._guess_extension(artwork)
-						except Exception as e:
-							# If we catch this exception the sidecar file extension
-							# could not be automatically determined from the
-							# artwork bytes.
-							# We do not want to write broken artwork files so we
-							# will continue with the next media file
-							log.info("Exception: {} (in {})".format(e, directory))
-							continue
-	
-	
-						if not self.dry_run:
-							file_to_write = os.path.join(directory, "{}.{}".format(self.	sidecar_filename_without_ext, extension))
-							with open(file_to_write, 'wb') as img:
-								log.debug("about to write {}".format(file_to_write))
-								img.write(artwork)
-								log.debug("successfully wrote {}".format(file_to_write))
-
-
-					# Keep track of written files
-					self.extensions_written[extension] = self.extensions_written.get(extension, 0) + 1
-
-					# Add to set of written dirs
-					self.written.add(directory)
-
-					# We are finished for this directory
-					return
-
-				except Exception as e:
-					log.debug("Error while reading {}: {}".format(f, e))
-					pass
-
-		else:
-			log.debug("File {}.* already existing in {} - skipping".format(self.sidecar_filename_without_ext, directory))
-			self.skipped.add(directory)
-
-		# Here we have not written anything. Reason is unknown.
-		self.not_written.add(directory)
-
-
-	def summary(self):
-		if self.show_summary:
-			log.warning("     Time elapsed: {:10.3f} secs".format(self.ts_stop - self.ts_start))
-			log.warning("    Total folders: {:6d}".format(self.folders_total))
-			log.warning("    Files written: {:6d}".format(len(self.written)))
-			for extension, number in self.extensions_written.items():
-				log.warning("{:>17s}: {:6d}".format(extension, number))
-			log.warning("    Files skipped: {:6d}".format(len(self.skipped)))
-			log.warning("Files not written: {:6d}".format(len(self.not_written)))
+        # Initialize the spinner (rotating thing when -v mode)
+        global spinner
+        spinner = spinning_cursor()
+
+        self.parse_args()
+        if self.dry_run:
+            log.warning("Dry run: running script in simulation mode")
+
+        # set start timestamp
+        self.ts_start = time.time()
+
+        # Scan for all directories in the specified self.directory
+        directories = self.get_directories(self.directory, recursive = self.recursive, leafs = not self.all_dirs)
+        self.folders_total = len(directories)
+        log.info ("Found {} dir(s)".format(self.folders_total))
+        log.debug("\n".join(directories))
+
+        # Iterate the list of directories and extract cover artwork
+        for directory in directories:
+            self.folders_current = self.folders_current + 1
+            percent = float(self.folders_current * 100 / self.folders_total)
+
+            if log.level > logging.INFO:
+                print("\r[{s}] {p:6.1f}% {dc:6d}/{dt:6d}    ".format(s=next(spinner), p=percent, dc=self.folders_current, dt=self.folders_total), end='\r')
+
+            self.create_sidecar_file(directory)
+
+        print("")
+
+        # set stop timestamp
+        self.ts_stop = time.time()
+
+        self.summary()
+
+
+
+    def parse_args(self):
+        """
+        This function parses the arguments passed to the script by the
+        command line.
+        """
+        description = "awe extracts cover artwork from music files and saves it to a file in the each album's directory."
+        epilog = "{my_name}, Python {py_version_maj}.{py_version_min}.{py_version_tiny}".format(my_name = self.__class__.__name__, py_version_maj = sys.version_info[0], py_version_min = sys.version_info[1], py_version_tiny = sys.version_info[2])
+
+        parser = argparse.ArgumentParser(description = description, epilog="{epilog}".format(epilog=epilog), conflict_handler="resolve")
+
+        # Directory options
+        parser.add_argument("dir", nargs="*", action="store", help="Directory that contains the music files. If none given, the current directory will be used.", default=".")
+        parser.add_argument("-a", "--all-dirs", action="store_true", dest="all_dirs", help="Usually only leaf directories (dirs that do not contain other dirs) are processed. If you want to process all directories and put sidecar files to it you can specify this option.", default=False, required=False)
+        parser.add_argument("-r", "--recursive", action="store_true", dest="recursive", help="Dive into subdirectories. Useful if you want to use awe for complete music collections.", default=False, required=False)
+
+        # Output options
+        parser.add_argument("-f", "--force", action="store_true", dest="force", help="Overwrite already existing sidecar files.", default=False, required=False)
+        parser.add_argument("-n", "--name", action="store", dest="name", help="Name of the sidecar file without extension to write in each folder that contains media files with embedded album artwork. The extension will be added automatically! Default is cover.", default="cover", required=False)
+
+        # verbosity options
+        verbosity_group = parser.add_mutually_exclusive_group()
+        verbosity_group.add_argument("-q", "--quiet", action="store_true", dest="quiet", help="Do not print anything to stdout but error messages.", default=False, required=False)
+        verbosity_group.add_argument("-v", "--verbose", action="count", dest="verbosity", help="Be more verbose what happens.", default=0, required=False)
+        parser.add_argument("-s", "--summary", action="store_true", dest="show_summary", help="Prints a summary after finishing the run.", default=False)
+
+        # simulating
+        parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Do not write any cover artwork files to disk or change anything else. This simulates a run and shows whats going on.", default=False)
+
+
+        # if an error occurs the help will be displayed automatically
+        try:
+            results = parser.parse_args()
+        except:
+            # parser.print_help()
+            sys.exit(0)
+
+        # set log level depending on verbosity
+        # if quiet is set, set log level to ERROR level
+        if results.quiet:
+            log.setLevel(logging.ERROR)
+        if results.verbosity == 0:
+            # default behavior is neither -q nor -v* has been provided
+            log.setLevel(logging.WARN)
+        elif results.verbosity == 1:
+            log.setLevel(logging.INFO)
+        elif results.verbosity == 2:
+            # if -vv or more is specified you can handle that here
+            log.setLevel(logging.DEBUG)
+        else: # results.verbosity >= 3:
+            # even more -v's: change logformatter and enable extended debug ouput
+            log.setLevel(logging.DEBUG)
+
+            for handler in log.handlers:
+                handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)7s] (%(filename)16s:%(lineno)4s - %(funcName)20s()) %(message)s'))
+
+        ### Sanity checks
+
+        # results.name is valid file name
+
+        # results.quality is 0 <= int <= 100
+
+        ### Save values
+        # Store variables depending on the arguments given on the command line
+        self.recursive = results.recursive
+        # self.recursion_limit = int(results.limit)
+        self.all_dirs = results.all_dirs
+        # self.follow_links = results.follow_links
+        self.dry_run = results.dry_run
+        self.directory = list(results.dir)
+        self.sidecar_filename_without_ext = results.name
+        self.force = results.force
+        self.show_summary = results.show_summary
+
+
+
+    def get_directories(self, base_dirs, recursive = False, leafs = True):
+        """Get list of directories in a base_dir.
+
+        :param base_dir: List of base directories to scan
+        :param recursive: If True, dive into subdirectories
+        :param leafs: If True, return only dirs that contain no other dirs
+        :return: List of directories in base_dir
+        """
+        result = []
+        for d in base_dirs:
+            # some preprocessing: expand variables and user dirs
+            de = os.path.realpath(os.path.expandvars(os.path.expanduser(d)))
+
+            if not os.path.exists(de) or not os.path.isdir(de):
+                log.warning("Directory {} does not exist".format(de))
+                continue
+            if not os.access(de, os.R_OK):
+                log.warning("Cannot access {}".format(de))
+                continue
+            # if not self.follow_links and os.path.islink(de):
+            #   log.warning("Do not follow link: {}".format(de))
+            #   continue
+
+            # extend the result list with the real absolute path names
+            dirs = [ os.path.join(de, f) for f in os.listdir(de) if os.path.isdir(os.path.join(de, f)) ]
+
+            # If leafs = True we add our dir to the result set
+            # if we do not contain any other directory
+            if not leafs or len(dirs) == 0:
+                result.append(de)
+
+            if recursive:
+                result.extend(self.get_directories(dirs, True, leafs = leafs))
+
+        return sorted(set(result))
+
+
+    def _guess_extension(self, bytes, fallback_ext="jpg"):
+        """Guesses the extension of the image data given as bytes.
+        If no extension could be guessed, it will return the extension
+        specified by fallback_ext.
+
+        :param bytes: Data of the (image) file
+        :param fallback_ext: Extension to use if it could not guessed
+        :returns: File extension as string
+        """
+        extension = imghdr.what("no_filename", bytes)
+        
+        if extension is None:
+            raise Exception('Could not determine extension from bytes')
+            # log.debug("Could not guess extension - using fallback")
+            # extension = fallback_ext
+            # log.info("Ext: {}".format(extension))
+            # sys.exit(2)
+        elif extension == "jpeg":
+            extension = "jpg"
+        
+        log.debug("Return extension: {}".format(extension))
+        return extension
+
+
+    def create_sidecar_file(self, directory):
+        """Get the artwork from one of the files in the directory.
+
+        In this step the artwork will be extracted from the media files and
+        can then be written to a sidecar file.
+        If one piece of artwork could be extracted from a file all other files
+        will not be accessed. The rationale behind this is that we expect (at
+        least) one file (maybe the first one) containts a piece of artwork
+        that represents the cover. If we got that we do not look further.
+
+        We do not need to check if the directory exists and can be accessed
+        because the get_directories() function should have already taken care
+        about that.
+
+        :param directory: Directory with media files
+        """
+        # log.debug("Create sidecar file in {}".format(directory))
+        files = [ f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)) ]
+
+
+        # Method to use
+        method = 2
+
+
+        # We need to proceed if
+        #   sidecar file does not exist
+        # or
+        #   sidecar file exists but --force was used
+        if self.force or len([ g for g in files if g.startswith(self.sidecar_filename_without_ext) ]) == 0:
+            for filename in files:
+                f = os.path.join(directory, filename)
+                log.debug("Trying to read {}".format(f))
+
+                try:
+                    tag = TinyTag.get(f, image=True)
+                    artwork = tag.get_image()
+
+                    if artwork is None:
+                        log.debug("No artwork found in {}".format(filename))
+                        continue
+
+                    log.debug("Got artwork: {} bytes".format(len(artwork)))
+
+
+                    if method == 1:
+                        from PIL import Image
+                        try:
+                            with Image.open(io.BytesIO(artwork)) as im:
+                                log.debug("Image type: {} (in: {})".format(im.format, directory))
+    
+                                extension = im.format.lower()
+                                if extension == 'jpeg':
+                                    extension = 'jpg'
+    
+                                file_to_write = os.path.join(directory, "{}.{}".format(self.    sidecar_filename_without_ext, extension))
+    
+                                if not self.dry_run:
+                                    im.save(file_to_write)
+    
+                        except IOError as e:
+                            log.warning("Could not write file: {}".format(file_to_write))
+                            continue
+                        except Exception as e:
+                            log.warning("PIL: {} (in {})".format(e, directory))
+                            continue
+
+
+                    if method == 2:
+                        try:
+                            extension = self._guess_extension(artwork)
+                        except Exception as e:
+                            # If we catch this exception the sidecar file extension
+                            # could not be automatically determined from the
+                            # artwork bytes.
+                            # We do not want to write broken artwork files so we
+                            # will continue with the next media file
+                            log.info("Exception: {} (in {})".format(e, directory))
+                            continue
+    
+    
+                        if not self.dry_run:
+                            file_to_write = os.path.join(directory, "{}.{}".format(self.    sidecar_filename_without_ext, extension))
+                            with open(file_to_write, 'wb') as img:
+                                log.debug("about to write {}".format(file_to_write))
+                                img.write(artwork)
+                                log.debug("successfully wrote {}".format(file_to_write))
+
+
+                    # Keep track of written files
+                    self.extensions_written[extension] = self.extensions_written.get(extension, 0) + 1
+
+                    # Add to set of written dirs
+                    self.written.add(directory)
+
+                    # We are finished for this directory
+                    return
+
+                except Exception as e:
+                    log.debug("Error while reading {}: {}".format(f, e))
+                    pass
+
+        else:
+            log.debug("File {}.* already existing in {} - skipping".format(self.sidecar_filename_without_ext, directory))
+            self.skipped.add(directory)
+
+        # Here we have not written anything. Reason is unknown.
+        self.not_written.add(directory)
+
+
+    def summary(self):
+        if self.show_summary:
+            log.warning("     Time elapsed: {:10.3f} secs".format(self.ts_stop - self.ts_start))
+            log.warning("    Total folders: {:6d}".format(self.folders_total))
+            log.warning("    Files written: {:6d}".format(len(self.written)))
+            for extension, number in self.extensions_written.items():
+                log.warning("{:>17s}: {:6d}".format(extension, number))
+            log.warning("    Files skipped: {:6d}".format(len(self.skipped)))
+            log.warning("Files not written: {:6d}".format(len(self.not_written)))
 
 
 if __name__ == '__main__':
-	ArtworkExtractor()
+    ArtworkExtractor()
