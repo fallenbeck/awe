@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import io
 import os
 import string
 import sys
@@ -49,6 +50,10 @@ class ArtworkExtractor:
 	# the album cover artwork from. If not specified we should use the
 	# current directory.
 	directory = []
+
+	# File type stats
+	# keys are the extensions, the values are the number of file written
+	extensions_written = {}
 
 	# Sidecar files
 	sidecar_filename_without_ext = "cover"
@@ -242,8 +247,11 @@ class ArtworkExtractor:
 		extension = imghdr.what("no_filename", bytes)
 		
 		if extension is None:
-			log.debug("Could not guess extension - using fallback")
-			extension = fallback_ext
+			raise Exception('Could not determine extension from bytes')
+			# log.debug("Could not guess extension - using fallback")
+			# extension = fallback_ext
+			# log.info("Ext: {}".format(extension))
+			# sys.exit(2)
 		elif extension == "jpeg":
 			extension = "jpg"
 		
@@ -338,6 +346,10 @@ class ArtworkExtractor:
 								img.write(artwork)
 								log.debug("successfully wrote {}".format(file_to_write))
 
+
+					# Keep track of written files
+					self.extensions_written[extension] = self.extensions_written.get(extension, 0) + 1
+
 					# Add to set of written dirs
 					self.written.add(directory)
 
@@ -361,6 +373,8 @@ class ArtworkExtractor:
 			log.warning("     Time elapsed: {:10.3f} secs".format(self.ts_stop - self.ts_start))
 			log.warning("    Total folders: {:6d}".format(self.folders_total))
 			log.warning("    Files written: {:6d}".format(len(self.written)))
+			for extension, number in self.extensions_written.items():
+				log.warning("{:>17s}: {:6d}".format(extension, number))
 			log.warning("    Files skipped: {:6d}".format(len(self.skipped)))
 			log.warning("Files not written: {:6d}".format(len(self.not_written)))
 
