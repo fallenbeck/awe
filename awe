@@ -46,6 +46,14 @@ class ArtworkExtractor:
     # Show a summary what has been done after finishing
     show_summary = False
 
+    # Method to use
+    # Method "fast" is faster than method "pil" but it simply writes
+    # the bytes containing a media file's artwork to disk.
+    # If we need further image processing steps such as getting the
+    # image size and resize the artwork file, we need to use the
+    # PIL-based method "pil"
+    create_method = "fast"
+
     # List of directories that hold the media files where we try to extract
     # the album cover artwork from. If not specified we should use the
     # current directory.
@@ -57,6 +65,11 @@ class ArtworkExtractor:
 
     # Sidecar files
     sidecar_filename_without_ext = "cover"
+
+    # Cover dimensions
+    # If set to 0, no scaling will be applied
+    max_height = 0
+    max_width = 0
 
     # Force
     # If False, existing sidecar files will not be overwritten.
@@ -142,6 +155,11 @@ class ArtworkExtractor:
         parser.add_argument("-f", "--force", action="store_true", dest="force", help="Overwrite already existing sidecar files.", default=False, required=False)
         parser.add_argument("-n", "--name", action="store", dest="name", help="Name of the sidecar file without extension to write in each folder that contains media files with embedded album artwork. The extension will be added automatically! Default is cover.", default="cover", required=False)
 
+        # Output dimensions
+        parser.add_argument("--max-size", action="store", dest="max_size", help="Set the maximum size of covers in sidecar files. Specifying the maximum size will ensure that neither the width nor the height will exceed this limit. Aspect ratio will be kept. It is a shortcut for --max-width together with --max-height. Using this option will overwrite any values given using --max-width and --max-height.", type=int)
+        parser.add_argument("--max-width", action="store", dest="max_width", help="Set the maximum width of covers in sidecar files. Covers exceeding this width will be scaled down, smaller covers will not be scaled up. Aspect ratio will be kept.", type=int)
+        parser.add_argument("--max-height", action="store", dest="max_height", help="Set the maximum height of covers in sidecar files. Covers exceeding this height will be scaled down, smaller covers will not be scaled up. Aspect ratio will be kept.", type=int)
+
         # verbosity options
         verbosity_group = parser.add_mutually_exclusive_group()
         verbosity_group.add_argument("-q", "--quiet", action="store_true", dest="quiet", help="Do not print anything to stdout but error messages.", default=False, required=False)
@@ -177,6 +195,29 @@ class ArtworkExtractor:
 
             for handler in log.handlers:
                 handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)7s] (%(filename)16s:%(lineno)4s - %(funcName)20s()) %(message)s'))
+
+        if results.max_height:
+            self.max_height = int(results.max_height)
+            self.create_method = "pil"
+            log.debug("Maximum height set to: {}".format(self.max_height))
+        if results.max_width:
+            self.max_width = int(results.max_width)
+            self.create_method = "pil"
+            log.debug("Maximum width set to: {}".format(self.max_width))
+        if results.max_size:
+            self.max_width = int(results.max_size)
+            self.max_height = int(results.max_size)
+            self.create_method = "pil"
+            log.debug("Maximum size set to: {}".format(results.max_size))
+
+        if self.create_method == "pil":
+            try:
+                log.debug("Import Python Imaging Library Pillow (PIL)")
+                from PIL import Image
+            except Exception as e:
+                log.error("Could not import PIL library: {}".format(e))
+                log.error("You might need to install Pillow.")
+                sys.exit(1)
 
         ### Sanity checks
 
@@ -259,6 +300,73 @@ class ArtworkExtractor:
         return extension
 
 
+    def get_sidecar_dimensions(self, original_width, original_height, max_width, max_height):
+        """Get the dimension of the image to write.
+
+        The first element of the 3-tuple returned is a boolean value
+        stating if a resize operation is needed (i.e. one of the original
+        dimensions exceeds one of the given maximums).
+
+        If max_height and/or max_width is given this function returns
+        values for the sidecar files that will be recalculated only if
+        the original image's dimensions exceed the given limits.
+
+        If max_width and/or max_height are  not set, the function returns a
+        2-tuple containing the original width and height.
+        If max_width is set but max_height is not set, the height will be
+        calculated in order to keep the aspect ratio of the image.
+        If max_height is st but max_width is not set, the width will be
+        calculated alike.
+        If both max_width and max_height are set, new dimensions will
+        be calculated such that limits will not be exceeded. The aspect
+        ratio of the original image will be kept.
+
+        :param original_width:  Width of original image
+        :type original_width:   int
+        :param original_height: Height of original image
+        :type original_heigt:   int
+        :param max_height:      Maximum height of image to create
+        :type max_height:       int
+        :param max_width:       Maximum width of image to create
+        :type max_width:        int
+        :return:                3-tuple (need_resize, width, height) of dimensions of image to create
+        :type:                  (bool, int, int)
+        """
+        log.debug("called get_sidecar_dimensions({}, {}, {}, {})".format(original_width, original_height, max_width, max_height))
+
+        result_dimensions = (False, original_width, original_height)
+        #log.debug("Original dimensions: {}".format((original_width, original_height)))
+
+        if max_width == 0 and max_height == 0:
+            # No limits set, nothing to do
+            pass
+
+        else:
+
+            wfactor = 1
+            hfactor = 1
+
+            if max_width > 0 and original_width > max_width:
+                # Width exceeded
+                wfactor = float(original_width) / float(max_width)
+
+            if max_height > 0 and original_height > max_height:
+                # Height exceeded
+                hfactor = float(original_height) / float(max_height)
+
+            # log.debug("wfactor: {}".format(wfactor))
+            # log.debug("hfactor: {}".format(hfactor))
+
+            result_dimensions = (True, int(float(original_width) / float(max(wfactor, hfactor))), int(float(original_height) / float(max(wfactor, hfactor))))
+
+            log.debug("Scaling needed: {} -> {}".format((original_width, original_height), result_dimensions))
+
+        #log.debug("Target dimensions:   {}".format(result_dimensions))
+        return result_dimensions
+
+
+
+
     def create_sidecar_file(self, directory):
         """Get the artwork from one of the files in the directory.
 
@@ -278,11 +386,6 @@ class ArtworkExtractor:
         # log.debug("Create sidecar file in {}".format(directory))
         files = [ f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)) ]
 
-
-        # Method to use
-        method = 2
-
-
         # We need to proceed if
         #   sidecar file does not exist
         # or
@@ -295,6 +398,7 @@ class ArtworkExtractor:
                 try:
                     tag = TinyTag.get(f, image=True)
                     artwork = tag.get_image()
+                    extension = None
 
                     if artwork is None:
                         log.debug("No artwork found in {}".format(filename))
@@ -303,7 +407,7 @@ class ArtworkExtractor:
                     log.debug("Got artwork: {} bytes".format(len(artwork)))
 
 
-                    if method == 1:
+                    if self.create_method == "pil":
                         from PIL import Image
                         try:
                             with Image.open(io.BytesIO(artwork)) as im:
@@ -314,7 +418,17 @@ class ArtworkExtractor:
                                     extension = 'jpg'
     
                                 file_to_write = os.path.join(directory, "{}.{}".format(self.    sidecar_filename_without_ext, extension))
-    
+
+                                # im.size[0] is the original image's width
+                                # im.size[1] is the original image's height
+                                (resize_needed, new_width, new_height) = self.get_sidecar_dimensions(im.size[0], im.size[1], self.max_width, self.max_height)
+
+                                log.debug("{} -> {}x{}".format(file_to_write, new_width, new_height))
+
+                                if resize_needed:
+                                    log.debug("Resizing ...")
+                                    im = im.resize((new_width, new_height), resample = Image.LANCZOS)
+
                                 if not self.dry_run:
                                     im.save(file_to_write)
     
@@ -326,7 +440,7 @@ class ArtworkExtractor:
                             continue
 
 
-                    if method == 2:
+                    if self.create_method == "fast":
                         try:
                             extension = self._guess_extension(artwork)
                         except Exception as e:
