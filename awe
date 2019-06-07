@@ -112,6 +112,11 @@ class ArtworkExtractor:
         self.ts_start = time.time()
 
         # Scan for all directories in the specified self.directory
+        if log.level > logging.INFO:
+            print("Scanning directories ...", end='\r')
+        else:
+            log.info("Scanning directories ...")
+
         directories = self.get_directories(self.directory, recursive = self.recursive, leafs = not self.all_dirs)
         self.folders_total = len(directories)
         log.info ("Found {} dir(s)".format(self.folders_total))
