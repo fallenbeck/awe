@@ -295,7 +295,7 @@ class ArtworkExtractor:
         :returns: File extension as string
         """
         extension = imghdr.what("no_filename", bytes)
-        
+
         if extension is None:
             raise Exception('Could not determine extension from bytes')
             # log.debug("Could not guess extension - using fallback")
@@ -304,7 +304,7 @@ class ArtworkExtractor:
             # sys.exit(2)
         elif extension == "jpeg":
             extension = "jpg"
-        
+
         log.debug("Return extension: {}".format(extension))
         return extension
 
@@ -421,11 +421,11 @@ class ArtworkExtractor:
                         try:
                             with Image.open(io.BytesIO(artwork)) as im:
                                 log.debug("Image type: {} (in: {})".format(im.format, directory))
-    
+
                                 extension = im.format.lower()
                                 if extension == 'jpeg':
                                     extension = 'jpg'
-    
+
                                 file_to_write = os.path.join(directory, "{}.{}".format(self.    sidecar_filename_without_ext, extension))
 
                                 # im.size[0] is the original image's width
@@ -440,7 +440,7 @@ class ArtworkExtractor:
 
                                 if not self.dry_run:
                                     im.save(file_to_write)
-    
+
                         except IOError as e:
                             log.warning("Could not write file: {}".format(file_to_write))
                             continue
@@ -460,8 +460,8 @@ class ArtworkExtractor:
                             # will continue with the next media file
                             log.info("Exception: {} (in {})".format(e, directory))
                             continue
-    
-    
+
+
                         if not self.dry_run:
                             file_to_write = os.path.join(directory, "{}.{}".format(self.    sidecar_filename_without_ext, extension))
                             with open(file_to_write, 'wb') as img:
