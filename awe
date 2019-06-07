@@ -201,6 +201,10 @@ class ArtworkExtractor:
             for handler in log.handlers:
                 handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)7s] (%(filename)16s:%(lineno)4s - %(funcName)20s()) %(message)s'))
 
+        if results.max_size and (results.max_width or results.max_height):
+            log.error("You cannot specify --max-size together with --max-width and/or --max_height")
+            sys.exit(1)
+
         if results.max_height:
             self.max_height = int(results.max_height)
             self.create_method = "pil"
