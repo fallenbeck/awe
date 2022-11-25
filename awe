@@ -475,7 +475,11 @@ class ArtworkExtractor:
 
                                 if resize_needed:
                                     log.debug("Resizing ...")
-                                    im = im.resize((new_width, new_height), resample = Image.LANCZOS)
+                                    from PIL import Resampling
+                                    im = im.resize(
+                                            (new_width, new_height),
+                                            resample = Resampling.LANCZOS
+                                            )
 
                                 if not self.dry_run:
                                     im.save(file_to_write)
